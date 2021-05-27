@@ -61,6 +61,7 @@ def scan_ports(ip_list):
             print("Scanning host " + ip + " ...")
             for port in range(1,65535):
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                
                 socket.setdefaulttimeout(1)
                 result = s.connect_ex((ip,port))
                 if result == 0:
