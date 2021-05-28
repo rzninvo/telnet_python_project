@@ -1,4 +1,5 @@
 import socket, select, string, sys, tqdm, os
+from datetime import datetime
 
 def get_command():
     ip_list = []
@@ -44,6 +45,9 @@ def create_server_socket(port):
     return server
 
 def execute_command(client_socket, msg):
+    with open("log.txt", "a") as f:
+        f.write(f"{datetime.now()} || {msg}\n")
+    f.close()
     commands = msg.split()
     if commands[0] == "telnet":
         if commands[1] == "exec":
@@ -110,6 +114,10 @@ def execute_command(client_socket, msg):
                     print("Not connected to a server!")
             else:
                 print("File does not exist!")
+        elif commands[1] == "history":
+            with open("log.txt", "r") as f:
+                print (f.read())
+            f.close()
         elif socket.gethostbyname(commands[1]):
             return create_client_socket([commands[1], int(commands[2])])
     else:
