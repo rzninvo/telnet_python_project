@@ -18,7 +18,7 @@ class Telnet_History_System(db.Entity):
     date_time = Required(datetime)
     command = Required(str, 255)
 
-db.bind(provider="mysql", host="localhost", user="rzn", passwd="41c2df0", db="telnet_history")
+db.bind(provider="mysql", host="localhost", user="rzn", passwd="test", db="telnet_history")
 db.generate_mapping(create_tables=True)
 
 """ with db_session:
