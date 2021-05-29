@@ -1,6 +1,43 @@
 import socket, string, sys, tqdm, os, select as net_select
 from datetime import datetime
 from db_orm import *
+from Crypto.Cipher import AES
+import base64
+import Padding
+
+key='telnet'
+salt='241fa86763b85341'
+
+
+def get_key_and_iv(password, salt, klen=32, ilen=16, msgdgst='md5'):
+
+    mdf = getattr(__import__('hashlib', fromlist=[msgdgst]), msgdgst)
+    password = password.encode('ascii', 'ignore')
+    salt = bytearray.fromhex(salt)
+
+    try:
+        maxlen = klen + ilen
+        keyiv = mdf((password + salt)).digest()
+        tmp = [keyiv]
+        while len(tmp) < maxlen:
+            tmp.append( mdf(tmp[-1] + password + salt).digest() )
+            keyiv += tmp[-1]
+        key = keyiv[:klen]
+        iv = keyiv[klen:klen+ilen]
+        return key, iv
+    except UnicodeDecodeError:
+         return None, None
+
+def encrypt(plaintext,key, mode,salt):
+	key,iv=get_key_and_iv(key,salt)
+	
+	encobj = AES.new(key,mode,iv)
+	return(encobj.encrypt(plaintext.encode()))
+
+def decrypt(ciphertext,key, mode,salt):
+	key,iv=get_key_and_iv(key,salt)
+	encobj = AES.new(key,mode,iv)
+	return(encobj.decrypt(ciphertext))
 
 def get_command():
     ip_list = []
@@ -53,9 +90,6 @@ def create_server_socket(port):
     return server
 
 def execute_command(client_socket, server_socket, msg):
-    with open("log.txt", "a") as f:
-        f.write(f"{datetime.now()} || {msg}\n")
-    f.close()
     with db_session:
         if client_socket:
             Telnet_History_System(server_ip_port= f"{client_socket.getsockname()[0]}, {client_socket.getsockname()[1]}", 
@@ -73,6 +107,9 @@ def execute_command(client_socket, server_socket, msg):
         elif commands[1] and commands[1] == "send":
             if client_socket:
                 client_socket.send(commands[2].encode())
+                with open("log.txt", "a") as f:
+                    f.write(f"{datetime.now()} || Client {server_socket.getsockname()} sending data {commands[2].encode()} to Server {client_socket.getsockname()}\n")
+                f.close()
                 print(f"Message sent to server {client_socket.getpeername()}")
             else:
                 print("Not connected to a server!")
@@ -80,7 +117,14 @@ def execute_command(client_socket, server_socket, msg):
             commands = msg.split(" ", 3)
             if commands[2] and commands[2] == "send":
                 if client_socket:
-                    client_socket.send(commands[3].encode())
+                    plaintext = commands[3]
+                    plaintext = Padding.appendPadding(plaintext,mode='CMS')
+                    ciphertext = encrypt(plaintext,key,AES.MODE_CBC,salt)
+                    ctext = b'Salted__' + bytearray.fromhex(salt) + ciphertext
+                    client_socket.send(ctext)
+                    with open("log.txt", "a") as f:
+                        f.write(f"{datetime.now()} || Client {server_socket.getsockname()} sending data {ctext} to Server {client_socket.getsockname()}\n")
+                    f.close()
                     print(f"Message sent to server {client_socket.getpeername()} with TLS encryption")
                 else:
                     print("Not connected to a server!")
@@ -186,6 +230,12 @@ def telnet_start(server_socket, client_socket):
                     print(f"Closing {sock.getpeername()} after reading no data!")
                     sockets.remove(sock)
                     sock.close()
+                elif data[0:8].decode() == 'Salted__':
+                    print(f"Received ecrypted OpenSSL AES data {data} from client {sock.getpeername()}")
+                    ciphertext = data[len(b'Salted__' + bytearray.fromhex(salt)):]
+                    plaintext = decrypt(ciphertext,key,AES.MODE_CBC,salt)
+                    plaintext = Padding.removePadding(plaintext.decode(),mode='CMS')
+                    print(f"Decrypted {plaintext} from client {sock.getpeername()}")
                 else:
                     msg = data.decode()
                     commands = msg.split(" ", 2)
