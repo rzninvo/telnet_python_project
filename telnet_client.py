@@ -1,5 +1,6 @@
-import socket, select, string, sys, tqdm, os
+import socket, string, sys, tqdm, os, select as net_select
 from datetime import datetime
+from db_orm import *
 
 def get_command():
     ip_list = []
@@ -22,10 +23,9 @@ def get_command():
                 else:
                     print("Unknown command! Please try again")
 
-def create_client_socket(host_port):
+def create_client_socket(host_port, server_socket):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(3)
-
     try :
 	    s.connect((host_port[0], host_port[1]))
     except :
@@ -33,7 +33,9 @@ def create_client_socket(host_port):
 	    exit()
 	
     print("Connected to remote host")
-
+    with db_session:
+        if not select(i for i in Client if i.client_ip_port == f"127.0.0.1, {server_socket.getsockname()[1]}"):
+            Client(client_ip_port= f"127.0.0.1, {server_socket.getsockname()[1]}", server_ip_port= f"{socket.gethostbyname(host_port[0])}, {host_port[1]}")
     return s
 
 def create_server_socket(port):
@@ -42,33 +44,49 @@ def create_server_socket(port):
     server_address = ('localhost', port)
     server.bind(server_address)
     server.listen(5)
+    with db_session:
+        try:
+            if not select(i for i in Server if i.server_ip_port == f"127.0.0.1, {port}"):
+                Server(server_ip_port= f"127.0.0.1, {port}")
+        except:
+            None
     return server
 
-def execute_command(client_socket, msg):
+def execute_command(client_socket, server_socket, msg):
     with open("log.txt", "a") as f:
         f.write(f"{datetime.now()} || {msg}\n")
     f.close()
-    commands = msg.split()
+    with db_session:
+        if client_socket:
+            Telnet_History_System(server_ip_port= f"{client_socket.getsockname()[0]}, {client_socket.getsockname()[1]}", 
+                    client_ip_port= f"{server_socket.getsockname()[0]}, {server_socket.getsockname()[1]}",
+                    date_time= datetime.now(),
+                    command= msg)
+    commands = msg.split(" ", 2)
     if commands[0] == "telnet":
-        if commands[1] == "exec":
+        if commands[1] and commands[1] == "exec":
             if client_socket:
                 client_socket.send(msg.encode())
+                print(f"Execution command sent to server {client_socket.getpeername()}")
             else:
                 print("Not connected to a server!")
-        elif commands[1] == "send":
+        elif commands[1] and commands[1] == "send":
             if client_socket:
                 client_socket.send(commands[2].encode())
                 print(f"Message sent to server {client_socket.getpeername()}")
             else:
                 print("Not connected to a server!")
-        elif commands[1] == "-e":
-            if commands[2] == "send":
+        elif commands[1] and commands[1] == "-e":
+            commands = msg.split(" ", 3)
+            if commands[2] and commands[2] == "send":
                 if client_socket:
                     client_socket.send(commands[3].encode())
                     print(f"Message sent to server {client_socket.getpeername()} with TLS encryption")
                 else:
                     print("Not connected to a server!")
-        elif commands[1] == "upload":
+            else:
+                print(f"Unknown command {msg}!")
+        elif commands[1] and commands[1] == "upload":
             if os.path.isfile(commands[2]):
                 if client_socket:
                     filesize = os.path.getsize(commands[2])
@@ -114,21 +132,30 @@ def execute_command(client_socket, msg):
                     print("Not connected to a server!")
             else:
                 print("File does not exist!")
-        elif commands[1] == "history":
-            with open("log.txt", "r") as f:
-                print (f.read())
-            f.close()
-        elif socket.gethostbyname(commands[1]):
-            return create_client_socket([commands[1], int(commands[2])])
+        elif commands[1] and commands[1] == "history":
+            if commands[2] and commands[2] == "log":
+                with open("log.txt", "r") as f:
+                    print (f.read())
+                f.close()
+            elif commands[2] and commands[2] == "db":
+                with db_session:
+                    Telnet_History_System.select().show()
+            else:
+                print(f"Unknown command {msg}!")
+        elif commands[1] and commands[1] == "quit":
+            exit()
+        elif commands[1] and socket.gethostbyname(commands[1]):
+            return create_client_socket([commands[1], int(commands[2])], server_socket)
+        else:
+            print(f"Unknown command {msg}!")    
     else:
         print(f"Unknown command {msg}!")
-        return None
     return None
 
 def telnet_start(server_socket, client_socket):
     sockets = [sys.stdin, server_socket]
     while 1:
-        read_sockets, write_sockets, error_sockets = select.select(sockets, [], sockets)
+        read_sockets, write_sockets, error_sockets = net_select.select(sockets, [], sockets)
 		
         for sock in read_sockets:   
             if sock == client_socket:
@@ -146,7 +173,7 @@ def telnet_start(server_socket, client_socket):
                 sockets.append(connection)
             elif sock == sys.stdin:
                 msg = input()
-                c = execute_command(client_socket, msg)
+                c = execute_command(client_socket, server_socket, msg)
                 if client_socket == None and c:
                     client_socket = c
                     sockets.append(client_socket)
@@ -161,7 +188,7 @@ def telnet_start(server_socket, client_socket):
                     sock.close()
                 else:
                     msg = data.decode()
-                    commands = msg.split()
+                    commands = msg.split(" ", 2)
                     file_com = msg.split("|")
                     if commands[0] ==  "telnet" and commands[1] == "exec":
                         print(f"Executing {commands[2]} from client {sock.getpeername()}")
