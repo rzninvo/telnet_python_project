@@ -1,5 +1,6 @@
 # Creating Telnet Using TCP sockets and P2P connections(Python)
 This is a project for implementing telnet with python using basic socket programming.
+
 ##Notes:
 * Supports port scanning for a given range of IPs
 * Supports encrypting and decrypting a message with OpenSSL AES encryption
