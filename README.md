@@ -6,6 +6,7 @@ This is a project for implementing telnet with python using basic socket program
 * Supports encrypting and decrypting a message with OpenSSL AES encryption.
 * Supports uploading files between clients localy and over the Internet.
 * Supports connection to none local hosts.
+* Supports sending mails with sockets.
 * Has a log.txt file which records data being sent between clients for the sender.
 * Has a database which records all the commands sent over the telnet protocol.
 * Uses [PonyORM](https://ponyorm.org/) for database managements.
@@ -13,12 +14,17 @@ This is a project for implementing telnet with python using basic socket program
 * IMPORTANT: this code DOES NOT WORK ON WINDOWS, because it uses other file_descriptors besides sockets in it's selecter( for unblocking purposes).
 ## Program Initialization:
 	$ Python3 telnet_client.py
-After running the code the program waits for you to decide if you want to scan some IPs or start your telnet server.
+After running the code and giving your database config the program waits for you to decide if you want to scan some IPs or start your telnet server.
 ## Scan:
   ```
   scan
   ```
   Simply writing scan will begin the process for scanning IPs. The rest is pretty easy to follow.
+## Mail:
+  ```
+  mail
+  ```
+  Simply writing mail will begin the process for sending a mail.
 ## Telnet Initialization:
   ```
   telnet [port]
