@@ -14,7 +14,7 @@ This is a project for implementing telnet with python using basic socket program
 * IMPORTANT: this code DOES NOT WORK ON WINDOWS, because it uses other file_descriptors besides sockets in it's selecter( for unblocking purposes).
 ## Program Initialization:
 	$ Python3 telnet_client.py
-After running the code and giving your database config the program waits for you to decide if you want to scan some IPs or start your telnet server.
+After running the code and giving your database config the program waits for you to decide if you want to scan some IPs or start your telnet server or maybe send a mail.
 ## Scan:
   ```
   scan
