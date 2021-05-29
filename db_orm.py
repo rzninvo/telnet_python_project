@@ -1,6 +1,7 @@
 from pony.orm import *
 from datetime import datetime
 import mysql.connector
+from getpass import getpass
 
 db = Database()
 
@@ -18,7 +19,10 @@ class Telnet_History_System(db.Entity):
     date_time = Required(datetime)
     command = Required(str, 255)
 
-db.bind(provider="mysql", host="localhost", user="rzn", passwd="test", db="telnet_history")
+username = getpass("Database user:")
+password = getpass("Database password:")
+
+db.bind(provider="mysql", host="localhost", user=username, passwd=password, db="telnet_history")
 db.generate_mapping(create_tables=True)
 
 """ with db_session:

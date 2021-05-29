@@ -4,6 +4,8 @@ from db_orm import *
 from Crypto.Cipher import AES
 import base64
 import Padding
+import time
+from getpass import getpass
 
 key='telnet'
 salt='241fa86763b85341'
@@ -51,6 +53,18 @@ def get_command():
                 if ip == "0":
                     return [port, ip_list, inp]                
                 ip_list.append(socket.gethostbyname(ip))
+        elif inp == "mail":
+            print("Please enter mailserver IP or hostname:")
+            mail_server_name = input()
+            print("Please enter mailserver port:")
+            port = int(input())
+            print("Please enter your username:")
+            username = input()
+            ps = getpass()
+            print("Please enter your message:")
+            msg = input()
+            send_mail(mail_server_name, port, msg, username, ps)
+            exit()
         else:
             command = inp.split()
             if len(command) == 2:
@@ -59,6 +73,57 @@ def get_command():
                     return [port, ip_list, command[0]]
                 else:
                     print("Unknown command! Please try again")
+
+def send_mail(mail_server_name, port, msg, username, password):
+    endmsg = "\r\n.\r\n"
+    mailserver = (mail_server_name, port)
+    clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    print("Requesting connection to mail server...")
+    clientSocket.connect(mailserver)
+    data = clientSocket.recv(1024)
+    data = data.decode()
+    print("Message after connection request:" + data)
+    if data[:3] != '220':
+        print('220 reply not received from server.')
+    clientSocket.send('EHLO Alice\r\n'.encode())
+    data = clientSocket.recv(1024)
+    data = data.decode()
+    print("Message after EHLO command:" + data)
+    if data[:3] != '250':
+        print('250 reply not received from server.')
+
+    base64_str = ("\x00"+username+"\x00"+password).encode()
+    base64_str = base64.b64encode(base64_str)
+    authMsg = "AUTH PLAIN ".encode()+base64_str+"\r\n".encode()
+    clientSocket.send(authMsg)
+    data = clientSocket.recv(1024)
+    print(data.decode())
+
+    clientSocket.send((f"MAIL FROM:<{username}>\r\n").encode())
+    data = clientSocket.recv(1024)
+    data = data.decode()
+    print("After MAIL FROM command: " + data)
+    clientSocket.send((f"RCPT TO:<{username}>\r\n").encode())
+    data = clientSocket.recv(1024)
+    data = data.decode()
+    print("After RCPT TO command: " + data)
+    clientSocket.send(("DATA\r\n").encode())
+    data = clientSocket.recv(1024)
+    data = data.decode()
+    print("After DATA command: " + data)
+    clientSocket.send(("Subject: Bakhshi Bot\r\n\r\n").encode())
+    date = time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.gmtime())
+    date = date + "\r\n\r\n"
+    clientSocket.send(date.encode())
+    clientSocket.send(msg.encode())
+    clientSocket.send(endmsg.encode())
+    data = clientSocket.recv(1024)
+    print("Response after sending message body:"+ data.decode())
+    clientSocket.send(("QUIT\r\n").encode())
+    data = clientSocket.recv(1024)
+    print(data.decode())
+
+    clientSocket.close()
 
 def create_client_socket(host_port, server_socket):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -92,7 +157,8 @@ def create_server_socket(port):
 def execute_command(client_socket, server_socket, msg):
     with db_session:
         if client_socket:
-            Telnet_History_System(server_ip_port= f"{client_socket.getsockname()[0]}, {client_socket.getsockname()[1]}", 
+            if msg:
+                Telnet_History_System(server_ip_port= f"{client_socket.getsockname()[0]}, {client_socket.getsockname()[1]}", 
                     client_ip_port= f"{server_socket.getsockname()[0]}, {server_socket.getsockname()[1]}",
                     date_time= datetime.now(),
                     command= msg)
